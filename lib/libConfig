@@ -1,0 +1,98 @@
+--libConfig--
+local function serializeImpl( t, tTracking )	
+	local sType = type(t)
+	if sType == "table" then
+		if tTracking[t] ~= nil then
+			error( "Cannot serialize table with recursive entries" )
+		end
+		tTracking[t] = true
+		
+		local result = "{"
+		for k,v in pairs(t) do
+			result = result..("["..serializeImpl(k, tTracking).."]="..serializeImpl(v, tTracking)..",")
+		end
+		result = result.."}"
+		return result
+		
+	elseif sType == "string" then
+		return string.format( "%q", t )
+	
+	elseif sType == "number" or sType == "boolean" or sType == "nil" then
+		return tostring(t)
+		
+	else
+		error( "Cannot serialize type "..sType )
+		
+	end
+end
+
+local function serialize( t )
+	local tTracking = {}
+	return serializeImpl( t, tTracking )
+end
+
+local function unserialize( s )
+	local func, e = loadstring( "return "..s, "serialize" )
+	if not func then
+		return s
+	else
+		setfenv( func, {} )
+		return func()
+	end
+end
+local configmeta = {}
+function configmeta:addKey(key, value)
+	key = tostring(key)
+	if type(value) ~= "table" then
+		self.config[key] = {value, type(value)}
+	else
+		self.config[key] = {serialize(value), "table"}
+	end
+end
+function configmeta:removeKey(key)
+	self.config[key] = nil
+end
+function configmeta:getKey(key)
+	if self.config[key] ~= nil then
+		if self.config[key][2] == "table" then
+			return unserialize(self.config[key][1])
+		else
+			return self.config[key][1]
+		end
+	end
+end
+function configmeta:save()
+	local fh = fs.open(self.file, "w")
+	for i, v in pairs(self.config) do
+		fh:writeLine(i..":"..v[2]..":"..v[1])
+	end
+	fh:close()
+end
+config = {}
+function config.new(file)
+	local obj = {}
+	obj.file = file
+	obj.config = {}
+	setmetatable(obj, {__index=configmeta})
+	return obj
+end
+function config.load(file)
+	local obj = config.new(file)
+	local fh = fs.open(file, "r")
+	while true do
+		local l = fh:readLine()
+		if l == nil then
+			break
+		else
+			local key, vtype, val = l:match("^(.+):(.+):(.+)$")
+			if key ~= nil then
+				if vtype ~= "number" then
+					obj.config[key] = {val, vtype}
+				else
+					obj.config[key] = {tonumber(val), vtype}
+				end
+			end
+		end
+	end
+	return obj
+end

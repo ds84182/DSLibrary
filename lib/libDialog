@@ -1,0 +1,284 @@
+--libDialog--
+local function read( _sReplaceChar, _tHistory )
+	local keys = library.load("Keys")
+	term.setCursorBlink( true )
+
+		local sLine = ""
+	local nHistoryPos = nil
+	local nPos = 0
+		if _sReplaceChar then
+		_sReplaceChar = string.sub( _sReplaceChar, 1, 1 )
+	end
+	local rw, rh = term.getSize()
+	local midw, midh = math.floor(rw/2), math.floor(rh/2)
+	local w, h = 22, 1
+	local sx, sy = midw-11, midh
+	local function redraw()
+		local nScroll = 0
+		if nPos >= w then
+			nScroll = (nPos) - w
+		end
+
+		term.setCursorPos( sx, sy )
+		term.write( string.rep(" ", w) )
+		term.setCursorPos( sx, sy )
+		if _sReplaceChar then
+			term.write( string.rep(_sReplaceChar, string.len(sLine) - nScroll) )
+		else
+			term.write( string.sub( sLine, nScroll + 1 ) )
+		end
+		term.setCursorPos( sx + nPos - nScroll, sy )
+		sleep(1/20)
+	end
+
+	while true do
+		local sEvent, param = os.pullEvent()
+		if sEvent == "char" then
+			sLine = string.sub( sLine, 1, nPos ) .. param .. string.sub( sLine, nPos + 1 )
+			nPos = nPos + 1
+			redraw()
+
+		elseif sEvent == "key" then
+				if param == keys.enter then
+				-- Enter
+				break
+
+			elseif param == keys.left then
+				-- Left
+				if nPos > 0 then
+					nPos = nPos - 1
+					redraw()
+				end
+
+			elseif param == keys.right then
+				-- Right
+				if nPos < string.len(sLine) then
+					nPos = nPos + 1
+					redraw()
+				end
+
+			elseif param == keys.up or param == keys.down then
+		-- Up or down
+				if _tHistory then
+					if param == keys.up then
+						-- Up
+						if nHistoryPos == nil then
+							if #_tHistory > 0 then
+								nHistoryPos = #_tHistory
+							end
+						elseif nHistoryPos > 1 then
+							nHistoryPos = nHistoryPos - 1
+						end
+					else
+						-- Down
+						if nHistoryPos == #_tHistory then
+							nHistoryPos = nil
+						elseif nHistoryPos ~= nil then
+							nHistoryPos = nHistoryPos + 1
+						end
+					end
+
+					if nHistoryPos then
+				sLine = _tHistory[nHistoryPos]
+				nPos = string.len( sLine )
+				else
+						sLine = ""
+						nPos = 0
+					end
+					redraw()
+		end
+			elseif param == keys.backspace then
+				-- Backspace
+				if nPos > 0 then
+					sLine = string.sub( sLine, 1, nPos - 1 ) .. string.sub( sLine, nPos + 1 )
+					nPos = nPos - 1
+					redraw()
+				end
+			end
+		end
+	end
+
+	term.setCursorBlink( false )
+	term.setCursorPos( w + 1, sy )
+
+	return sLine
+end
+local function trim(s,a)
+	return s:sub(1,a)
+end
+local function times(s,t)
+	local ns = ""
+	for i=1, t do
+		ns = ns..s
+	end
+	return ns
+end
+local alertmeta = {}
+function alertmeta:setTitle(title)
+	self.title = title
+end
+function alertmeta:setMessage(msg)
+	self.msg = msg
+end
+--[[function alertmeta:setTimeout(time)
+	self.time = time
+end]]
+function alertmeta:show()
+	--This methood shows the alert until closed--
+	--All dialogs are 24 by 16--
+	local w, h = term.getSize()
+	local midw, midh = math.floor(w/2), math.floor(h/2)
+	local lines = {}
+	local lineat = 1
+	lines[lineat] = ""
+	for word in self.msg:gmatch("(%S+)") do
+		if #lines[lineat]+#word+1 < 22 then
+			lines[lineat] = lines[lineat]..word.." "
+		else
+			lineat = lineat+1
+			lines[lineat] = word.." "
+		end
+	end
+	if not term.isColor() then
+		term.setCursorPos(midw-12,midh-8)
+		term.write("|----------------------|")
+		term.setCursorPos(midw-12,midh-7)
+		local titlebar = "|"..trim(self.title,19)
+		if #self.title > 19 then
+			titlebar = titlebar.."..."
+		else
+			titlebar = titlebar..times(" ",22-#self.title)
+		end
+		titlebar = titlebar.."|"
+		term.write(titlebar)
+		term.setCursorPos(midw-12,midh-6)
+		term.write("|----------------------|")
+		for i=1, 12 do
+			term.setCursorPos(midw-12,midh-6+i)
+			if lines[i] == nil then
+				term.write("|                      |")
+			else
+				term.write("|"..lines[i]..times(" ",22-#lines[i]).."|")
+			end
+		end
+		term.setCursorPos(midw-12,midh+7)
+		term.write("|         [OK]         |")
+		term.setCursorPos(midw-12,midh+8)
+		term.write("|----------------------|")
+	else
+		term.setCursorPos(midw-12,midh-8)
+		term.setBackgroundColor(color.gray)
+		term.write("                        ")
+		term.setCursorPos(midw-12,midh-7)
+		local titlebar = " "..trim(self.title,19)
+		if #self.title > 19 then
+			titlebar = titlebar.."..."
+		else
+			titlebar = titlebar..times(" ",22-#self.title)
+		end
+		titlebar = titlebar.." "
+		term.write(titlebar)
+		term.setCursorPos(midw-12,midh-6)
+		term.write("                        ")
+		term.setBackgroundColor(color.blue)
+		for i=1, 12 do
+			term.setCursorPos(midw-12,midh-6+i)
+			if lines[i] == nil then
+				term.write("                        ")
+			else
+				term.write(" "..lines[i]..times(" ",22-#lines[i]).." ")
+			end
+		end
+		term.setCursorPos(midw-12,midh+7)
+		term.write("          [OK]          ")
+		term.setCursorPos(midw-12,midh+8)
+		term.write("                        ")
+	end
+	while true do
+		local e, k = os.pullEvent("key")
+		if k == 28 then
+			break
+		end
+	end
+end
+dialog = {}
+function dialog.newAlert(title, msg)
+	local obj = {}
+	obj.title = title
+	obj.msg = msg
+	setmetatable(obj,{__index=alertmeta})
+	return obj
+end
+
+local inputmeta = {}
+function inputmeta:setTitle(title)
+	self.title = title
+end
+function inputmeta:setReplace(rep)
+	self.rep = rep
+end
+function inputmeta:show()
+	--This methood shows the alert until closed--
+	--All dialogs are 24 by 16--
+	local w, h = term.getSize()
+	local midw, midh = math.floor(w/2), math.floor(h/2)
+	if not term.isColor() then
+		term.setCursorPos(midw-12,midh-3)
+		term.write("|----------------------|")
+		term.setCursorPos(midw-12,midh-2)
+		local titlebar = "|"..trim(self.title,19)
+		if #self.title > 19 then
+			titlebar = titlebar.."..."
+		else
+			titlebar = titlebar..times(" ",#self.title-22)
+		end
+		titlebar = titlebar.."|"
+		term.write(titlebar)
+		term.setCursorPos(midw-12,midh-1)
+		term.write("|----------------------|")
+		term.setCursorPos(midw-12,midh)
+		term.write("|")
+		term.setCursorPos(midw+12,midh)
+		term.write("|")
+		term.setCursorPos(midw-12,midh+1)
+		term.write("|         [OK]         |")
+		term.setCursorPos(midw-12,midh+2)
+		term.write("|----------------------|")
+		term.setCursorPos(midw-11,midh)
+		local input = read(self.rep)
+		return input
+	else
+		term.setCursorPos(midw-12,midh-3)
+		term.setBackgroundColor(color.gray)
+		term.write("                        ")
+		term.setCursorPos(midw-12,midh-2)
+		local titlebar = " "..trim(self.title,19)
+		if #self.title > 19 then
+			titlebar = titlebar.."..."
+		else
+			titlebar = titlebar..times(" ",22-#self.title)
+		end
+		titlebar = titlebar.." "
+		term.write(titlebar)
+		term.setCursorPos(midw-12,midh-1)
+		term.write("                        ")
+		term.setBackgroundColor(color.blue)
+		term.setCursorPos(midw-12,midh)
+		term.write("                        ")
+		term.setCursorPos(midw-12,midh+1)
+		term.write("          [OK]          ")
+		term.setCursorPos(midw-12,midh+2)
+		term.write("                        ")
+		term.setCursorPos(midw-11,midh)
+		local input = read(self.rep)
+		return input
+	end
+end
+
+function dialog.newInput(title, rep)
+	local obj = {}
+	obj.title = title
+	obj.rep = rep
+	setmetatable(obj, {__index = inputmeta})
+	return obj
+end
